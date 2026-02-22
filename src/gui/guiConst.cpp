@@ -1287,6 +1287,7 @@ const int availableSystems[]={
   DIV_SYSTEM_AY8910,
   DIV_SYSTEM_AMIGA,
   DIV_SYSTEM_PCSPKR,
+  DIV_SYSTEM_8253,
   DIV_SYSTEM_POKEMINI,
   DIV_SYSTEM_SFX_BEEPER,
   DIV_SYSTEM_SFX_BEEPER_QUADTONE,
@@ -1419,6 +1420,7 @@ const int chipsSquare[]={
   DIV_SYSTEM_T6W28,
   DIV_SYSTEM_PV1000,
   DIV_SYSTEM_TED,
+  DIV_SYSTEM_8253,
   0 // don't remove this last one!
 };
 
