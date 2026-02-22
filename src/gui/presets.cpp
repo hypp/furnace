@@ -560,6 +560,7 @@ void FurnaceGUI::initSystemPresets() {
         CH(DIV_SYSTEM_OPL4_DRUMS, 1.0f, 0, "")
       }
     );
+
   ENTRY(
       _("NEC PC-6001"), {
         CH(DIV_SYSTEM_AY8910, 1.0f, 0, "customClock=3993600")
@@ -1563,6 +1564,17 @@ void FurnaceGUI::initSystemPresets() {
           CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
         }
     );
+  ENTRY(
+    _("Sharp MZ-700"), {
+      CH(DIV_SYSTEM_8253, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    _("Sharp MZ-800"), {
+      CH(DIV_SYSTEM_SMS, 1.0f, 0, "clockSel=1 chipType=4"),
+      CH(DIV_SYSTEM_8253, 1.0f, 0, "")
+    }
+  );
   ENTRY(
     _("Sharp X1"), {
       CH(DIV_SYSTEM_AY8910, 1.0f, 0, "clockSel=3")
