@@ -720,6 +720,12 @@ void DivEngine::performVGMWrite(SafeWriter* w, DivSystem sys, DivRegWrite& write
           }
         }
         break;
+      case DIV_SYSTEM_8253:
+        printf("export end");
+        w->writeC(0xc9);
+        w->writeC(0x00); // LSB = 0
+        w->writeC(0x00); // MSB = 0 = note off
+        break;
       default:
         break;
     }
@@ -1230,6 +1236,11 @@ void DivEngine::performVGMWrite(SafeWriter* w, DivSystem sys, DivRegWrite& write
       w->writeC(baseAddr2|(write.addr&0x7f));
       w->writeC(write.val);
       break;
+    case DIV_SYSTEM_8253:
+        w->writeC(0xc9);
+        w->writeC(write.val&0xff);      // LSB
+        w->writeC((write.val>>8)&0xff); // MSB
+        break;
     default:
       logW("write not handled!");
       break;
@@ -1333,6 +1344,7 @@ SafeWriter* DivEngine::saveVGM(bool* sysToExport, bool loop, int version, bool p
   int hasC352=0;
   int hasGA20=0;
   int hasLynx=0;
+  int has8253=0;
 
   int howManyChips=0;
   int chipVolSum=0;
@@ -2045,6 +2057,13 @@ SafeWriter* DivEngine::saveVGM(bool* sysToExport, bool loop, int version, bool p
           howManyChips++;
         }
         break;
+      case DIV_SYSTEM_8253:
+        if (!has8253) {
+          has8253=disCont[i].dispatch->chipClock;
+          CHIP_VOL(0x42,1.0);
+          willExport[i]=true;
+        }
+        break;
       default:
         break;
     }
@@ -2191,6 +2210,7 @@ SafeWriter* DivEngine::saveVGM(bool* sysToExport, bool loop, int version, bool p
     w->writeI(hasC352);
     w->writeI(hasGA20);
     w->writeI(version>=0x172?hasLynx:0);  //Mikey introduced in 1.72
+    w->writeI(version>=0x173?has8253:0);  // i8253 introduced in 1.73
   } else {
     w->writeI(0);
     w->writeI(0);
@@ -2205,8 +2225,9 @@ SafeWriter* DivEngine::saveVGM(bool* sysToExport, bool loop, int version, bool p
     w->writeI(0);
     w->writeI(0);
     w->writeI(0);
+    w->writeI(0);
   }
-  for (int i=0; i<6; i++) { // reserved
+  for (int i=0; i<5; i++) { // reserved
     w->writeI(0);
   }
 

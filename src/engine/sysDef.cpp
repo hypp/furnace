@@ -2738,7 +2738,7 @@ void DivEngine::registerSystems() {
 
   sysDefs[DIV_SYSTEM_8253]=new DivSysDef(
     _("Intel 8253"), NULL, 0xf6, 0, 1, 1, 1,
-    false, true, 0, false, 0, 0, 0,
+    false, true, 0x173, false, 0, 0, 0,
     _("a programmable interval timer used in many computers for sound generation."),
     DivChanDefFunc({
       DivChanDef(_("Square"), "SQ", DIV_CH_PULSE, DIV_INS_BEEPER)
