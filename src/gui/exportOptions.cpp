@@ -258,7 +258,7 @@ void FurnaceGUI::drawExportVGM(bool onWindow) {
 
   ImGui::Text(_("settings:"));
   if (ImGui::BeginCombo(_("format version"),fmt::sprintf("%d.%.2x",vgmExportVersion>>8,vgmExportVersion&0xff).c_str())) {
-    for (int i=0; i<7; i++) {
+    for (int i=0; i<(int)(sizeof(vgmVersions)/sizeof(vgmVersions[0])); i++) {
       if (ImGui::Selectable(fmt::sprintf("%d.%.2x",vgmVersions[i]>>8,vgmVersions[i]&0xff).c_str(),vgmExportVersion==vgmVersions[i])) {
         vgmExportVersion=vgmVersions[i];
       }

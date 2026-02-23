@@ -8797,7 +8797,7 @@ FurnaceGUI::FurnaceGUI():
   settingsChanged(false),
   debugFFT(false),
   debugRowTimestamps(false),
-  vgmExportVersion(0x171),
+  vgmExportVersion(0x173),
   vgmExportTrailingTicks(-1),
   vgmExportCorrectedRate(44100),
   drawHalt(10),

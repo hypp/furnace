@@ -124,14 +124,15 @@ const int altValues[24]={
   0, 10, 1, 11, 2, 3, 12, 4, 13, 5, 14, 6, 7, 15, 8, -1, 9, -1, -1, -1, -1, -1, -1, -1
 };
 
-const int vgmVersions[7]={
+const int vgmVersions[8]={
   0x150,
   0x151,
   0x160,
   0x161,
   0x170,
   0x171,
-  0x172
+  0x172,
+  0x173,
 };
 
 // name, icon, letter icon
