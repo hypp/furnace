@@ -1,75 +1,345 @@
-# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
-# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: CMake on multiple platforms
+name: Build furnace
 
 on:
   push:
-    branches: [ "master", "i8253" ]
+    branches: ["i8253"]
   pull_request:
-    branches: [ "master" ]
+    branches: master
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_TYPE: Debug
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-
     strategy:
-      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
-      fail-fast: false
-
-      # Set up a matrix to run the following 3 configurations:
-      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
-      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
-      #
-      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        build_type: [Release]
-        c_compiler: [gcc, clang, cl]
-        include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-          - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-        exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
-          - os: ubuntu-latest
-            c_compiler: cl
+        config:
+          - { name: 'Windows MSVC x86', os: windows-latest, compiler: msvc, arch: x86 }
+          - { name: 'Windows MSVC x86_64', os: windows-latest, compiler: msvc, arch: x86_64 }
+          #- { name: 'Windows MinGW x86', os: ubuntu-20.04, compiler: mingw, arch: x86 }
+          #- { name: 'Windows MinGW x86_64', os: ubuntu-20.04, compiler: mingw, arch: x86_64 }
+          - { name: 'macOS x86_64', os: macos-14, arch: x86_64 }
+          - { name: 'macOS ARM', os: macos-latest, arch: arm64 }
+          - { name: 'Linux x86_64', os: ubuntu-22.04, arch: x86_64 }
+          #- { name: 'Linux ARM', os: ubuntu-18.04, arch: armhf }
+      fail-fast: true
+
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4.1.1
+      with:
+        submodules: recursive
 
-    - name: Set reusable strings
-      # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
-      id: strings
-      shell: bash
+    - name: Set Windows arch identifiers
+      id: windows-identify
+      if: ${{ matrix.config.compiler == 'msvc' || matrix.config.compiler == 'mingw' }}
       run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+        vswhere_target="${{ matrix.config.arch }}"
+        msvc_target="${{ matrix.config.arch }}"
+        mingw_target="${{ matrix.config.arch }}"
 
-    - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+        if [ '${{ matrix.config.arch }}' == 'x86' ]; then
+          msvc_target="Win32"
+        elif [ '${{ matrix.config.arch }}' == 'x86_64' ]; then
+          vswhere_target="amd64"
+          msvc_target="x64"
+        fi
+
+        if [ '${{ matrix.config.compiler }}' == 'msvc' ]; then
+          echo "vswhere target: ${vswhere_target}"
+          echo "MSVC target: ${msvc_target}"
+        else
+          echo "MinGW cross target: ${mingw_target}"
+        fi
+
+        echo "vswhere-target=${vswhere_target}" >> $GITHUB_OUTPUT
+        echo "msvc-target=${msvc_target}" >> $GITHUB_OUTPUT
+        echo "mingw-target=${mingw_target}" >> $GITHUB_OUTPUT
+
+    - name: Set package identifier
+      id: package-identify
+      run: |
+        package_name="furnace-${GITHUB_SHA}"
+        package_ext=""
+        if [ '${{ runner.os }}' == 'Windows' ] || [ '${{ matrix.config.compiler }}' == 'mingw' ]; then
+          package_name="${package_name}-Windows"
+          if [ '${{ matrix.config.compiler }}' == 'mingw' ]; then
+            package_name="${package_name}-MinGW"
+          else
+            package_name="${package_name}-MSVC"
+          fi
+          package_name="${package_name}-${{ matrix.config.arch }}"
+          package_ext="" # Directory, uploading will automatically zip it
+        elif [ '${{ runner.os }}' == 'macOS' ]; then
+          package_name="${package_name}-macOS-${{ matrix.config.arch }}"
+          package_ext=".dmg"
+        else
+          package_name="${package_name}-Linux-${{ matrix.config.arch }}"
+          package_ext=".tar.gz"
+        fi
+
+        echo "Package identifier: ${package_name}"
+        echo "Package file: ${package_name}${package_ext}"
+
+        echo "id=${package_name}" >> $GITHUB_OUTPUT
+        echo "filename=${package_name}${package_ext}" >> $GITHUB_OUTPUT
+
+    - name: Set build cores amount
+      id: build-cores
+      run: |
+        # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
+        amount=2
+        if [ '${{ runner.os }}' == 'macOS' ]; then
+          amount=3
+        fi
+
+        echo "Amount of cores we can build with: ${amount}"
+
+        echo "amount=${amount}" >> $GITHUB_OUTPUT
+
+    - name: Setup Toolchain [Windows MSVC]
+      if: ${{ matrix.config.compiler == 'msvc' }}
+      uses: lunathir/gha-setup-vsdevenv@avoid-deprecation-warnings
+      with:
+        arch: ${{ steps.windows-identify.outputs.vswhere-target }}
+
+    - name: Setup Toolchain [Windows MinGW]
+      if: ${{ matrix.config.compiler == 'mingw' }}
+      run: |
+        sudo apt update
+        sudo apt install \
+          mingw-w64 \
+          mingw-w64-tools
+
+    - name: Install Dependencies [Linux x86_64]
+      if: ${{ runner.os == 'Linux' && matrix.config.compiler != 'mingw' && matrix.config.arch == 'x86_64' }}
+      run: |
+        sudo apt update
+        sudo apt install \
+          libsdl2-dev \
+          libfmt-dev \
+          librtmidi-dev \
+          libsndfile1-dev \
+          zlib1g-dev \
+          libjack-jackd2-dev \
+          gettext
+
+    - name: Install Dependencies [Linux armhf]
+      if: ${{ runner.os == 'Linux' && matrix.config.compiler != 'mingw' && matrix.config.arch == 'armhf' }}
+      run: |
+        sudo sed -ri "s/^deb /deb [arch=amd64] /" /etc/apt/sources.list
+        echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic main universe" | sudo tee -a /etc/apt/sources.list
+        echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports/ bionic-updates main universe" | sudo tee -a /etc/apt/sources.list
+        sudo dpkg --add-architecture armhf
+        sudo apt update
+        sudo apt install \
+          crossbuild-essential-armhf \
+          appstream \
+          gettext
+        sudo apt install \
+          libsdl2-dev:armhf \
+          libfmt-dev:armhf \
+          librtmidi-dev:armhf \
+          libsndfile1-dev:armhf \
+          zlib1g-dev:armhf \
+          libjack-jackd2-dev:armhf
+        ls /usr/arm-linux-gnueabihf/lib
+
+    - name: Build Language Files
+      if: ${{ runner.os == 'Linux' && matrix.config.compiler != 'mingw' }}
+      run: |
+        ./scripts/build-po.sh
+
+    - name: Configure
+      run: |
+        export USE_WAE=ON
+        export CMAKE_EXTRA_ARGS=()
+        if [ '${{ matrix.config.compiler }}' == 'msvc' ]; then
+          CMAKE_EXTRA_ARGS+=('-DCMAKE_GENERATOR_PLATFORM=${{ steps.windows-identify.outputs.msvc-target }}')
+
+          # Force static linking
+          # 1. Make MSVC runtime configurable
+          CMAKE_EXTRA_ARGS+=('-DCMAKE_POLICY_DEFAULT_CMP0091=NEW')
+          # 2. Use static (debug) runtime
+          if [ '${{ env.BUILD_TYPE }}' == 'Debug' ]; then
+            CMAKE_EXTRA_ARGS+=('-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug')
+          else
+            CMAKE_EXTRA_ARGS+=('-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded')
+          fi
+        elif [ '${{ matrix.config.compiler }}' == 'mingw' ]; then
+          CMAKE_EXTRA_ARGS+=('-DCMAKE_TOOLCHAIN_FILE=scripts/Cross-MinGW-${{ steps.windows-identify.outputs.mingw-target }}.cmake')
+          if [ '${{ matrix.config.arch }}' == 'x86' ]; then
+            CMAKE_EXTRA_ARGS+=('-DSUPPORT_XP=ON')
+          fi
+        elif [ '${{ runner.os }}' == 'macOS' ]; then
+          CMAKE_EXTRA_ARGS+=('-DCMAKE_C_FLAGS="-O2"' '-DCMAKE_CXX_FLAGS="-O2"')
+          if [ '${{ matrix.config.arch }}' == 'arm64' ]; then
+            CMAKE_EXTRA_ARGS+=('-DCMAKE_OSX_DEPLOYMENT_TARGET="11.0"' '-DCMAKE_OSX_ARCHITECTURES=arm64' '-DMAKE_BUNDLE=ON')
+          else
+            CMAKE_EXTRA_ARGS+=('-DCMAKE_OSX_DEPLOYMENT_TARGET="10.9"' '-DCMAKE_OSX_ARCHITECTURES=x86_64' '-DMAKE_BUNDLE=ON' '-DCMAKE_C_FLAGS=-march=core2' '-DCMAKE_CXX_FLAGS=-march=core2')
+          fi
+        elif [ '${{ runner.os }}' == 'Linux' ] && [ '${{ matrix.config.arch }}' == 'armhf' ]; then
+          CMAKE_EXTRA_ARGS+=('-DCMAKE_TOOLCHAIN_FILE=scripts/Cross-Linux-armhf.cmake')
+        fi
+
+        echo "EXTRA FLAGS: ${CMAKE_EXTRA_ARGS[@]}"
+
+        cmake \
+          -B ${PWD}/build \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DWARNINGS_ARE_ERRORS=${USE_WAE} \
+          -DWITH_DEMOS=OFF -DWITH_INSTRUMENTS=OFF -DWITH_WAVETABLES=OFF \
+          "${CMAKE_EXTRA_ARGS[@]}"
 
     - name: Build
-      # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: |
+        cmake \
+          --build ${PWD}/build \
+          --config ${{ env.BUILD_TYPE }} \
+          --parallel ${{ steps.build-cores.outputs.amount }}
 
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest --build-config ${{ matrix.build_type }}
+    - name: Package [Windows]
+      if: ${{ runner.os == 'Windows' || matrix.config.compiler == 'mingw' }}
+      run: |
+        binPath=build
+        if [ '${{ matrix.config.compiler }}' == 'msvc' ]; then
+          binPath="${binPath}/${{ env.BUILD_TYPE }}"
+        fi
+        # always strip on MinGW as it generate massive artifacts
+        #if [ '${{ matrix.config.compiler }}' == 'mingw' ]; then
+        #  # arch-specific strip prefix
+        #  # TODO maybe extract from cross toolchain files?
+        #  toolPrefix="-w64-mingw32-"
+        #  if [ '${{ matrix.config.arch }}' == 'x86_64' ]; then
+        #    toolPrefix="x86_64${toolPrefix}"
+        #  else
+        #    toolPrefix="i686${toolPrefix}"
+        #  fi
+        #  ${toolPrefix}strip -s "${binPath}/furnace.exe"
+        #fi
+
+        mkdir ${{ steps.package-identify.outputs.filename }}
+        pushd ${{ steps.package-identify.outputs.filename }}
+
+        cp -v ../LICENSE.GPLv3 LICENSE.txt
+        cp -v ../res/releaseReadme/unstable-win.txt README.txt
+        cp -vr ../po/locale locale
+        cp -vr ../papers ../${binPath}/furnace.exe ./
+        if [ '${{ matrix.config.compiler }}' == 'msvc' ]; then
+          if [ -e ../${binPath}/furnace.pdb ]; then
+            cp -v ../${binPath}/furnace.pdb ./
+          fi
+        fi
+        sha256sum ../${binPath}/furnace.exe > checksum.txt
+
+        popd
+
+    - name: Package [macOS]
+      if: ${{ runner.os == 'macOS' }}
+      run: |
+        pushd build
+
+        echo "preparing bundle"
+        mkdir -p Furnace.app/Contents/Resources
+        cp -v -r ../po/locale Furnace.app/Contents/Resources/locale
+        cp -v ../res/icon.icns Furnace.app/Contents/Resources/Furnace.icns
+
+        codesign --deep -f -s - Furnace.app
+
+        echo "making dirs"
+        mkdir new
+
+        echo "copying"
+        cp -v -r Furnace.app new/Furnace.app
+        ln -s /Applications new/Applications
+        echo "synchronizing"
+        sync
+
+        echo "copying extra stuff"
+        cp -v ../LICENSE.GPLv2 new/LICENSE.txt
+        cp -v ../res/releaseReadme/stable-mac.txt new/README
+        cp -v -r ../demos new/demos
+        cp -v -r ../instruments new/instruments
+        cp -v -r ../wavetables new/wavetables
+        cd new
+        wget https://tildearrow.org/furnace/doc/latest/manual.pdf
+        cd ..
+
+        echo "creating new image"
+        retries=0
+        while ! hdiutil create -srcfolder new -volname Furnace -format UDZO -fs HFS+ furnace.dmg; do
+          echo "TRYING AGAIN..."
+          retries=$((retries+1))
+          if [ $retries -gt 5 ]; then
+            echo "OH NO, WE'VE FAILED..."
+            exit 1
+            break
+          fi
+          sleep 5
+        done
+        
+        mv furnace.dmg ../${{ steps.package-identify.outputs.filename }}
+        popd
+
+    - name: Package [Linux]
+      if: ${{ runner.os == 'Linux' && matrix.config.compiler != 'mingw' }}
+      run: |
+        #if [ '${{ env.BUILD_TYPE }}' == 'Release' ]; then
+        #  strip -s build/furnace
+        #fi
+
+        mkdir -p target/furnace
+        make -C ${PWD}/build DESTDIR=${PWD}/target/furnace install
+        pushd target/furnace
+
+        cp -v ../../res/logo.png .DirIcon
+
+        cd usr
+
+        mv bin/furnace ..
+        rmdir bin
+
+        rm -r share/applications
+        rm -r share/doc
+        rm -r share/icons
+        rm -r share/licenses
+        rm -r share/metainfo
+        rm -r share/mime
+        mv share/locale ..
+
+        rmdir share
+
+        cd ..
+
+        cp ../../LICENSE.GPLv2 .
+        cp ../../res/releaseReadme/unstable-other.txt .
+        cp -r ../../papers papers
+        rmdir usr
+
+        popd
+
+        cd target
+
+        tar -zcv -f ../${{ steps.package-identify.outputs.filename }} furnace
+
+    - name: Upload artifact
+      if: ${{ github.repository == 'tildearrow/furnace' && github.ref_name == 'master' }}
+      uses: actions/upload-artifact@v4.3.0
+      with:
+        name: ${{ steps.package-identify.outputs.id }}
+        path: ${{ steps.package-identify.outputs.filename }}
+
+    - name: Upload 30xx artifact
+      if: ${{ github.repository == 'tildearrow/furnace' && github.ref_name == 'theUltimateFix' }}
+      uses: actions/upload-artifact@v4.3.0
+      with:
+        name: ${{ steps.package-identify.outputs.id }}
+        path: ${{ steps.package-identify.outputs.filename }}
