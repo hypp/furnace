@@ -50,6 +50,8 @@ class DivPlatform8253: public DivDispatch {
     int init(DivEngine* parent, int channels, int suggestedRate, const DivConfig& flags);
     void quit();
     bool keyOffAffectsArp(int ch);
+    void notifyPlaybackStop();
+    void toggleRegisterDump(bool enable);
 
     DivPlatform8253();
 

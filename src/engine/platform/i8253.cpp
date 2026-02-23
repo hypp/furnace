@@ -126,12 +126,25 @@ void DivPlatform8253::tick(bool sysTick) {
 
   if (chan[0].freqChanged || chan[0].keyOn || chan[0].keyOff) {
     if (chan[0].keyOn) on=true;
-    if (chan[0].keyOff) on=false;
+    if (chan[0].keyOff) {
+      on=false;
+      if (dumpWrites) {
+        // We use 0 for note off
+        addWrite(0x00, 0x0000);
+      }
+    }
 
     chan[0].freq=parent->calcFreq(chan[0].baseFreq,chan[0].pitch,chan[0].fixedArp?chan[0].baseNoteOverride:chan[0].arpOff,chan[0].fixedArp,true,0,chan[0].pitch2,chipClock,CHIP_DIVIDER);
     if (chan[0].freq<1) chan[0].freq=1;
     if (chan[0].freq>65535) chan[0].freq=65535;
     chip.setFreq((uint16_t)chan[0].freq);
+
+    if (!chan[0].keyOff && chan[0].active) {
+      if (dumpWrites) {
+        addWrite(0x00, chan[0].freq);
+      }
+    }
+
     chan[0].freqChanged=false;
     chan[0].keyOn=false;
     chan[0].keyOff=false;
@@ -167,6 +180,10 @@ void DivPlatform8253::reset() {
   chan[0]=Channel();
   chan[0].std.setEngine(parent);
   chip.reset();
+
+  if (dumpWrites) {
+    addWrite(0xffffffff,0);
+  }
 }
 
 void DivPlatform8253::forceIns() {
@@ -209,4 +226,16 @@ void DivPlatform8253::quit() {
 
 bool DivPlatform8253::keyOffAffectsArp(int ch) {
   return true;
+}
+
+void DivPlatform8253::notifyPlaybackStop() {
+  on=false;
+  chan[0].active=false;
+}
+
+void DivPlatform8253::toggleRegisterDump(bool enable) {
+  DivDispatch::toggleRegisterDump(enable);
+  if (enable) {
+    getRegisterWrites().clear();
+  }
 }
