@@ -15,10 +15,11 @@ DivPlatform8253::DivPlatform8253():
 
 void DivPlatform8253::acquire(short** buf, size_t len) {
   oscBuf->begin(len);
-  for (size_t i=0; i<len; i++) {
-    short out=(on && !isMuted)?chip.tick(rate):0;
-    buf[0][i]=out;
-    oscBuf->putSample(i,out);
+  for (size_t i = 0; i < len; i++) {
+    // Scale down to match SN76489
+    short out = (on && !isMuted) ? (chip.tick(rate)/4.0) : 0;
+    buf[0][i] = out;
+    oscBuf->putSample(i, out);
   }
   oscBuf->end(len);
 }
