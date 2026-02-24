@@ -26,6 +26,11 @@ for (N + 1)/2 counts and low for (N - 1)/2 counts.
 In Modes 2 and 3, if a CLK source other than the
 system clock is used, GATE should be pulsed immediately following WR of a new count value.
 
+Loading all zeros into a count register will
+result in the maximum count (216 for Binary
+
+NOTE: All zeros is not implemented, and used in VGM export for silence
+
 */
 
 i8253_device::i8253_device():
