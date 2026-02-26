@@ -182,9 +182,9 @@ void DivPlatform8253::reset() {
   chan[0].std.setEngine(parent);
   chip.reset();
 
-  if (dumpWrites) {
-    addWrite(0xffffffff,0);
-  }
+//  if (dumpWrites) {
+//    addWrite(0xffffffff,0);
+//  }
 }
 
 void DivPlatform8253::forceIns() {
@@ -201,7 +201,10 @@ int DivPlatform8253::getOutputCount() {
 }
 
 void DivPlatform8253::setFlags(const DivConfig& flags) {
-  chipClock=1108400;
+  chipClock=17734000.0/16.0;
+  CHECK_CUSTOM_CLOCK;
+  rate=chipClock/CHIP_DIVIDER;
+  oscBuf->setRate(rate);
 }
 
 void DivPlatform8253::notifyInsDeletion(void* ins) {
