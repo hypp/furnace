@@ -6,7 +6,7 @@
 
 class DivPlatform8253: public DivDispatch {
 
-  struct Channel: public SharedChannel<signed char> {
+  struct Channel: public SharedChannel {
     int freq, baseFreq, note;
     bool freqChanged, keyOn, keyOff;
     DivMacroInt std;
@@ -14,8 +14,8 @@ class DivPlatform8253: public DivDispatch {
       std.init(which);
       pitch2=0;
     }
-    Channel():
-      SharedChannel<signed char>(1),
+    Channel(bool linear = true):
+      SharedChannel(1,linear),
       freq(0),
       baseFreq(0),
       note(0),
@@ -34,7 +34,7 @@ class DivPlatform8253: public DivDispatch {
   public:
     void acquire(short** buf, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivMacroInt* getChanMacroInt(int ch);
     DivDispatchOscBuffer* getOscBuffer(int chan);
     unsigned char* getRegisterPool();
