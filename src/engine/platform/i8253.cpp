@@ -30,7 +30,7 @@ int DivPlatform8253::dispatch(DivCommand c) {
       DivInstrument* ins=parent->getIns(chan[0].ins,DIV_INS_BEEPER);
       chan[0].macroInit(ins);
       if (c.value!=DIV_NOTE_NULL) {
-        chan[0].baseFreq=NOTE_PERIODIC(c.value);
+        chan[0].baseFreq=chan[0].calcBaseFreq(c.value);
         chan[0].freqChanged=true;
         chan[0].note=c.value;
       }
@@ -62,7 +62,7 @@ int DivPlatform8253::dispatch(DivCommand c) {
       chan[0].freqChanged=true;
       break;
     case DIV_CMD_NOTE_PORTA: {
-      int destFreq=NOTE_PERIODIC(c.value2);
+      int destFreq=chan[0].calcBaseFreq(c.value2);
       bool return2=false;
       if (destFreq>chan[0].baseFreq) {
         chan[0].baseFreq+=c.value;
@@ -82,7 +82,7 @@ int DivPlatform8253::dispatch(DivCommand c) {
       break;
     }
     case DIV_CMD_LEGATO:
-      chan[0].baseFreq=NOTE_PERIODIC(c.value+((chan[0].std.arp.will && !chan[0].std.arp.mode)?(chan[0].std.arp.val):(0)));
+      chan[0].baseFreq=chan[0].calcBaseFreq(c.value+((chan[0].std.arp.will && !chan[0].std.arp.mode)?(chan[0].std.arp.val):(0)));
       chan[0].freqChanged=true;
       chan[0].note=c.value;
       break;
@@ -113,9 +113,9 @@ void DivPlatform8253::tick(bool sysTick) {
 
   if (chan[0].std.arp.had) {
     if (!chan[0].std.arp.mode) {
-      chan[0].baseFreq=NOTE_PERIODIC(chan[0].note+chan[0].std.arp.val);
+      chan[0].baseFreq=chan[0].calcBaseFreq(chan[0].note+chan[0].std.arp.val);
     } else {
-      chan[0].baseFreq=NOTE_PERIODIC(chan[0].std.arp.val);
+      chan[0].baseFreq=chan[0].calcBaseFreq(chan[0].std.arp.val);
     }
     chan[0].freqChanged=true;
   }
@@ -152,7 +152,7 @@ void DivPlatform8253::tick(bool sysTick) {
   }
 }
 
-void* DivPlatform8253::getChanState(int c) {
+SharedChannel* DivPlatform8253::getChanState(int c) {
   return &chan[c];
 }
 
