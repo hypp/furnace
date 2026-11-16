@@ -7,25 +7,13 @@
 class DivPlatform8253: public DivDispatch {
 
   struct Channel: public SharedChannel {
-    int freq, baseFreq, note;
-    bool freqChanged, keyOn, keyOff;
-    DivMacroInt std;
-    void macroInit(DivInstrument* which) {
-      std.init(which);
-      pitch2=0;
-    }
     Channel(bool linear = true):
-      SharedChannel(1,linear),
-      freq(0),
-      baseFreq(0),
-      note(0),
-      freqChanged(false),
-      keyOn(false),
-      keyOff(false) {
+      SharedChannel(1,linear) {
       }
   };
 
   Channel chan[1];
+  DivPitchTable pitchTable;
   DivDispatchOscBuffer* oscBuf;
   bool isMuted;
   bool on;

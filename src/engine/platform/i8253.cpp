@@ -31,6 +31,7 @@ int DivPlatform8253::dispatch(DivCommand c) {
       chan[0].macroInit(ins);
       if (c.value!=DIV_NOTE_NULL) {
         chan[0].baseFreq=chan[0].calcBaseFreq(c.value);
+//        printf("NOTE_ON note=%d baseFreq=%d chipClock=%f\n", c.value, chan[0].baseFreq, (double)chipClock);
         chan[0].freqChanged=true;
         chan[0].note=c.value;
       }
@@ -138,6 +139,7 @@ void DivPlatform8253::tick(bool sysTick) {
     chan[0].freq=parent->calcFreq(chan[0].baseFreq,chan[0].pitch,chan[0].fixedArp?chan[0].baseNoteOverride:chan[0].arpOff,chan[0].fixedArp,true,0,chan[0].pitch2,chipClock,CHIP_DIVIDER);
     if (chan[0].freq<1) chan[0].freq=1;
     if (chan[0].freq>65535) chan[0].freq=65535;
+//    printf("freq=%d\n", chan[0].freq);
     chip.setFreq((uint16_t)chan[0].freq);
 
     if (!chan[0].keyOff && chan[0].active) {
@@ -176,10 +178,12 @@ const char** DivPlatform8253::getRegisterPoolNames() {
   return NULL;
 }
 
+
 void DivPlatform8253::reset() {
   on=false;
   chan[0]=Channel();
   chan[0].std.setEngine(parent);
+  chan[0].pitchTable=&pitchTable;
   chip.reset();
 
 //  if (dumpWrites) {
@@ -205,6 +209,7 @@ void DivPlatform8253::setFlags(const DivConfig& flags) {
   CHECK_CUSTOM_CLOCK;
   rate=chipClock/CHIP_DIVIDER;
   oscBuf->setRate(rate);
+  pitchTable.init(parent->song.tuning,chipClock,CHIP_DIVIDER,0xffff,true,parent->song.compatFlags.linearPitch);
 }
 
 void DivPlatform8253::notifyInsDeletion(void* ins) {
